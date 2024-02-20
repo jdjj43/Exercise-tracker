@@ -111,34 +111,53 @@ app.post('/api/users/:_id/exercises', (req, res) => {
   execute();
 });
 
-app.get('/api/users/:id/logs', (req, res) => {
-  let log = [];
-  const execute = async () => {
-    try {
-      const exercises = await Exercise.find({ user_id: req.params.id });
-      const user = await Username.findOne({ _id: req.params.id });
-      if (user) {
-        if (exercises) {
-          exercises.map((exercise) => {
-            const logItem = { description: exercise.description, duration: exercise.duration, date: exercise.date.toDateString() };
-            log.push(logItem);
-          });
-          res.json({
-            _id: user._id,
-            username: user.username,
-            count: log.length,
-            log: log,
-          })
-        } else {res.json({ error: "No exercises found" }); }
-      } else {
-        res.json({ error: "User not found" });
-      }
-    } catch (error) {
-      console.log(error);
+app.get('/api/users/:id/logs', async (req, res) => {
+  try {
+    const exercisesQuery = { user_id: req.params.id };
+
+    // Verificar si se proporcionan parámetros de fecha en el URL
+    if (req.query.from) {
+      exercisesQuery.date = exercisesQuery.date || {};
+      exercisesQuery.date.$gte = new Date(`${req.query.from}T00:00:00.000Z`);
     }
+
+    if (req.query.to) {
+      exercisesQuery.date = exercisesQuery.date || {};
+      exercisesQuery.date.$lt = new Date(`${req.query.to}T23:59:59.999Z`);
+    }
+
+    console.log(exercisesQuery)
+
+    const limit = req.query.limit ? parseInt(req.query.limit) : 0;
+
+    const exercises = await Exercise.find(exercisesQuery).limit(limit);
+    const user = await Username.findOne({ _id: req.params.id });
+
+    if (user) {
+      if (exercises && exercises.length > 0) {
+        const log = exercises.map((exercise) => ({
+          description: exercise.description,
+          duration: exercise.duration,
+          date: exercise.date.toDateString()
+        }));
+
+        res.json({
+          _id: user._id,
+          username: user.username,
+          count: log.length,
+          log: log,
+        });
+      } else {
+        res.json({ error: "No exercises found" });
+      }
+    } else {
+      res.json({ error: "User not found" });
+    }
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ error: "Internal Server Error" });
   }
-  execute();
-})
+});
 
 
 
