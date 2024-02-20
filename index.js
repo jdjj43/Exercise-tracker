@@ -3,6 +3,8 @@ const app = express()
 const cors = require('cors')
 require('dotenv').config()
 const bodyParser = require('body-parser');
+const moment = require('moment'); // require
+moment().format();
 
 app.use(bodyParser.urlencoded({ extended: false }));
 
@@ -18,7 +20,7 @@ const userSchema = new mongoose.Schema({
 // 3 creamos un objeto username
 const Username = mongoose.model("Username", userSchema);
 
-// ESQUEMA DE EXERCISES
+// 5 ESQUEMA DE EXERCISES
 const exercisesSchema = new mongoose.Schema({
   user_id: { type: String, required: true },
   description: { type: String, required: true },
@@ -33,6 +35,20 @@ app.get('/', (req, res) => {
   res.sendFile(__dirname + '/views/index.html')
 });
 
+// 7 get de users
+app.get('/api/users', (req, res) => {
+  const execute = async () => {
+    try {
+      const data = await Username.find({});
+      if (data) res.json(data);
+    } catch (error) {
+      console.log(error);
+    }
+  }
+  execute();
+})
+
+
 // 4 post
 app.post('/api/users', (req, res) => {
   //checkear si existe en base de datos
@@ -40,10 +56,11 @@ app.post('/api/users', (req, res) => {
     try {
       const data = await Username.findOne({ username: req.body.username });
       if (!data) {
-        Username.create({
+        const dataAPasar = {
           username: req.body.username
-        });
-        const newData = await Username.findOne({ username: req.body.username });
+        }
+        await Username.create(dataAPasar);
+        const newData = await Username.findOne(dataAPasar);
         res.json({ username: newData.username, _id: newData._id });
       }
       if (data) {
@@ -56,23 +73,30 @@ app.post('/api/users', (req, res) => {
   execute();
 });
 
+// 6 post de exercises
 app.post('/api/users/:_id/exercises', (req, res) => {
   const execute = async () => {
     try {
       const userExists = await Username.findOne({ _id: req.params._id });
+      let date
+      if (req.body.date) {
+        date = new Date(req.body.date).toDateString();
+      } else {
+        date = new Date().toDateString();
+      }
       if (userExists) {
         Exercise.create({
           user_id: req.params._id,
           description: req.body.description,
           duration: req.body.duration,
-          date: req.body.date
+          date: date,
         })
         res.json({
           _id: req.params._id,
           username: userExists.username,
+          date: date,
+          duration: parseInt(req.body.duration),
           description: req.body.description,
-          duration: req.body.duration,
-          date: req.body.date
         });
       } else {
         res.json({
@@ -86,6 +110,36 @@ app.post('/api/users/:_id/exercises', (req, res) => {
   };
   execute();
 });
+
+app.get('/api/users/:id/logs', (req, res) => {
+  let log = [];
+  const execute = async () => {
+    try {
+      const exercises = await Exercise.find({ user_id: req.params.id });
+      const user = await Username.findOne({ _id: req.params.id });
+      if (user) {
+        if (exercises) {
+          exercises.map((exercise) => {
+            const logItem = { description: exercise.description, duration: exercise.duration, date: exercise.date.toDateString() };
+            log.push(logItem);
+          });
+          res.json({
+            _id: user._id,
+            username: user.username,
+            count: log.length,
+            log: log,
+          })
+        } else {res.json({ error: "No exercises found" }); }
+      } else {
+        res.json({ error: "User not found" });
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  }
+  execute();
+})
+
 
 
 const listener = app.listen(process.env.PORT || 3000, () => {
